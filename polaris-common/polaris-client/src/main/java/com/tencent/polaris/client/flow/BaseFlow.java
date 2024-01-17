@@ -262,7 +262,7 @@ public class BaseFlow {
 
     private static boolean loadLocalResources(ServiceEventKey svcEventKey, ResourcesResponse resourcesResponse,
             LocalRegistry localRegistry) {
-        ResourceFilter filter = new ResourceFilter(svcEventKey, false, true, true);
+        ResourceFilter filter = new ResourceFilter(svcEventKey, false, true);
         if (svcEventKey.getEventType() == EventType.INSTANCE) {
             ServiceInstances instances = localRegistry.getInstances(filter);
             if (instances.isInitialized()) {
