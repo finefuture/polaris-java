@@ -19,6 +19,7 @@ package com.tencent.polaris.factory.config.provider;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.tencent.polaris.api.config.provider.LosslessConfig;
 import com.tencent.polaris.api.config.provider.ProviderConfig;
 import com.tencent.polaris.api.utils.CollectionUtils;
 import com.tencent.polaris.factory.util.ConfigUtils;
@@ -39,6 +40,8 @@ public class ProviderConfigImpl implements ProviderConfig {
      */
     private final static long DEFAULT_MIN_REGISTER_INTERVAL = 30 * 1000;
 
+    private final static int DEFAULT_HEARTBEAT_WORKER_SIZE = 4;
+
     @JsonProperty
     private RateLimitConfigImpl rateLimit;
 
@@ -54,6 +57,12 @@ public class ProviderConfigImpl implements ProviderConfig {
     @JsonProperty
     private long minRegisterInterval;
 
+    @JsonProperty
+    private int heartbeatWorkerSize;
+
+    @JsonProperty
+    private LosslessConfigImpl lossless;
+
     @Override
     public RateLimitConfigImpl getRateLimit() {
         return rateLimit;
@@ -62,6 +71,16 @@ public class ProviderConfigImpl implements ProviderConfig {
     @Override
     public long getMinRegisterInterval() {
         return minRegisterInterval;
+    }
+
+    @Override
+    public int getHeartbeatWorkerSize() {
+        return heartbeatWorkerSize;
+    }
+
+    @Override
+    public LosslessConfig getLossless() {
+        return lossless;
     }
 
     @Override
@@ -93,6 +112,7 @@ public class ProviderConfigImpl implements ProviderConfig {
     @Override
     public void verify() {
         ConfigUtils.validateNull(rateLimit, "rateLimitConfig");
+        ConfigUtils.validateNull(lossless, "losslessConfig");
 
         rateLimit.verify();
         if (CollectionUtils.isNotEmpty(registers)) {
@@ -108,15 +128,22 @@ public class ProviderConfigImpl implements ProviderConfig {
         if (null == rateLimit) {
             rateLimit = new RateLimitConfigImpl();
         }
+        if (null == lossless) {
+            lossless = new LosslessConfigImpl();
+        }
         if (null == service) {
             service = new ServiceConfigImpl();
         }
         if (minRegisterInterval == 0) {
             minRegisterInterval = DEFAULT_MIN_REGISTER_INTERVAL;
         }
+        if (heartbeatWorkerSize == 0) {
+            heartbeatWorkerSize = DEFAULT_HEARTBEAT_WORKER_SIZE;
+        }
         if (null != defaultObject) {
             ProviderConfig providerConfig = (ProviderConfig) defaultObject;
             rateLimit.setDefault(providerConfig.getRateLimit());
+            lossless.setDefault(providerConfig.getLossless());
             if (CollectionUtils.isNotEmpty(registers)) {
                 for (RegisterConfigImpl registerConfig : registers) {
                     registerConfig.setDefault(providerConfig.getRegisters().get(0));

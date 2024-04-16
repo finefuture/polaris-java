@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-        xmlns="http://maven.apache.org/POM/4.0.0"
-        xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
         <artifactId>polaris-parent</artifactId>
         <groupId>com.tencent.polaris</groupId>
@@ -40,6 +40,16 @@
             <dependency>
                 <groupId>com.tencent.polaris</groupId>
                 <artifactId>polaris-client</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.tencent.polaris</groupId>
+                <artifactId>polaris-metadata</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.tencent.polaris</groupId>
+                <artifactId>polaris-threadlocal</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -318,6 +328,11 @@
             </dependency>
             <dependency>
                 <groupId>com.tencent.polaris</groupId>
+                <artifactId>router-lane</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.tencent.polaris</groupId>
                 <artifactId>router-metadata</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -363,6 +378,18 @@
             <dependency>
                 <groupId>com.tencent.polaris</groupId>
                 <artifactId>configfilefilter-crypto</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!-- polaris-plugins-lossless -->
+            <dependency>
+                <groupId>com.tencent.polaris</groupId>
+                <artifactId>lossless-register</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.tencent.polaris</groupId>
+                <artifactId>lossless-deregister</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

@@ -62,4 +62,17 @@ public interface ProviderConfig extends Verifier {
      * @return minimal register interval millisecond
      */
     long getMinRegisterInterval();
+
+    /**
+     * 获取负责实例心跳上报线程的数量
+     *
+     * @return run heartbeat thread size
+     */
+    int getHeartbeatWorkerSize();
+
+    /**
+     * get the lossless configuration
+     * @return configuration
+     */
+    LosslessConfig getLossless();
 }

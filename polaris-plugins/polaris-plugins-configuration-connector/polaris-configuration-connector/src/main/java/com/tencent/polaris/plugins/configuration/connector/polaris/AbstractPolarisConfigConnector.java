@@ -24,6 +24,7 @@ import com.tencent.polaris.api.plugin.PluginType;
 import com.tencent.polaris.api.plugin.common.InitContext;
 import com.tencent.polaris.api.plugin.common.PluginTypes;
 import com.tencent.polaris.api.plugin.compose.Extensions;
+import com.tencent.polaris.factory.config.global.ServerConnectorConfigImpl;
 import com.tencent.polaris.plugins.connector.grpc.ConnectionManager;
 
 import java.util.HashMap;
@@ -32,6 +33,8 @@ import java.util.concurrent.CompletableFuture;
 
 public abstract class AbstractPolarisConfigConnector implements Plugin {
     protected ConnectionManager connectionManager;
+
+    protected ServerConnectorConfigImpl connectorConfig;
 
     public String getName() {
         return getClass().getSimpleName();
@@ -46,6 +49,7 @@ public abstract class AbstractPolarisConfigConnector implements Plugin {
         Map<ClusterType, CompletableFuture<String>> futures = new HashMap<>();
         futures.put(ClusterType.SERVICE_CONFIG_CLUSTER, readyFuture);
         connectionManager = new ConnectionManager(ctx, ctx.getConfig().getConfigFile().getServerConnector(), futures);
+        this.connectorConfig = ctx.getConfig().getConfigFile().getServerConnector();
     }
 
     public void postContextInit(Extensions extensions) throws PolarisException {

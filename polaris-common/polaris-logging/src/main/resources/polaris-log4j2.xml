@@ -65,10 +65,42 @@
 
             <DefaultRolloverStrategy max="${sys:polaris.healthcheck.event.log.retain.count:-7}"/>
         </RollingFile>
+
+        <RollingFile name="POLARIS_LOSSLESS_EVENT_LOG_FILE"
+                     fileName="${sys:polaris.log.home}/polaris-lossless-event"
+                     filePattern="${sys:polaris.log.home}/polaris-lossless-event.log.%d{yyyy-MM-dd}.%i">
+            <PatternLayout>
+                <Pattern>%m|%d{yyyy-MM-dd HH:mm:ss.SSS}%n</Pattern>
+            </PatternLayout>
+
+            <Policies>
+                <TimeBasedTriggeringPolicy/>
+                <SizeBasedTriggeringPolicy
+                        size="${sys:polaris.lossless.event.log.file.size:-10MB}"/>
+            </Policies>
+
+            <DefaultRolloverStrategy max="${sys:polaris.lossless.event.log.retain.count:-7}"/>
+        </RollingFile>
+
+        <RollingFile name="POLARIS_INSTANCE_HEARTBEAT_LOG_FILE"
+                     fileName="${sys:polaris.log.home}/polaris-instance-heartbeat"
+                     filePattern="${sys:polaris.log.home}/polaris-instance-heartbeat.log.%d{yyyy-MM-dd}.%i">
+            <PatternLayout>
+                <Pattern>%m|%d{yyyy-MM-dd HH:mm:ss.SSS}%n</Pattern>
+            </PatternLayout>
+
+            <Policies>
+                <TimeBasedTriggeringPolicy/>
+                <SizeBasedTriggeringPolicy
+                        size="${sys:polaris.instance.heartbeat.log.file.size:-10MB}"/>
+            </Policies>
+
+            <DefaultRolloverStrategy max="${sys:polaris.instance.heartbeat.log.retain.count:-7}"/>
+        </RollingFile>
     </Appenders>
 
     <Loggers>
-        <Root level="error">
+        <Root level="info">
             <AppenderRef ref="Console"/>
         </Root>
         <Logger name="com.tencent.polaris"
@@ -96,5 +128,15 @@
         <!--                additivity="false">-->
         <!--            <AppenderRef ref="POLARIS_UPDATE_EVENT_LOG_FILE"/>-->
         <!--        </AsyncLogger>-->
+        <Logger name="polaris-lossless-event"
+                level="${sys:polaris.lossless.event.log.level:-info}"
+                additivity="false">
+            <AppenderRef ref="POLARIS_LOSSLESS_EVENT_LOG_FILE"/>
+        </Logger>
+        <Logger name="polaris-instance-heartbeat"
+                level="${sys:polaris.instance.heartbeat.log.level:-info}"
+                additivity="false">
+            <AppenderRef ref="POLARIS_INSTANCE_HEARTBEAT_LOG_FILE"/>
+        </Logger>
     </Loggers>
 </Configuration>

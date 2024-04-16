@@ -6,13 +6,17 @@ import com.tencent.polaris.api.exception.ServerCodes;
 import com.tencent.polaris.api.pojo.ServiceEventKey;
 import com.tencent.polaris.api.pojo.ServiceEventKey.EventType;
 import com.tencent.polaris.api.utils.MapUtils;
+import com.tencent.polaris.api.utils.StringUtils;
 import com.tencent.polaris.specification.api.v1.service.manage.RequestProto.DiscoverRequest.DiscoverRequestType;
 import com.tencent.polaris.specification.api.v1.service.manage.ResponseProto;
 import com.tencent.polaris.specification.api.v1.service.manage.ResponseProto.DiscoverResponse.DiscoverResponseType;
 import io.grpc.Metadata;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.AbstractStub;
 import io.grpc.stub.MetadataUtils;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicLong;
@@ -149,10 +153,10 @@ public class GrpcUtil {
      * @param stub   请求桩
      * @param nextID 请求ID
      */
-    public static <T extends AbstractStub<T>> void attachRequestHeader(T stub, String nextID) {
+    public static <T extends AbstractStub<T>> T attachRequestHeader(T stub, String nextID) {
         Metadata extraHeaders = new Metadata();
         extraHeaders.put(KEY_REQUEST_ID, nextID);
-        stub.withInterceptors(MetadataUtils.newAttachHeadersInterceptor(extraHeaders));
+        return stub.withInterceptors(MetadataUtils.newAttachHeadersInterceptor(extraHeaders));
     }
 
     /**
@@ -162,15 +166,26 @@ public class GrpcUtil {
      * @param customHeader 自定义header
      * @param <T>          桩类型
      */
-    public static <T extends AbstractStub<T>> void attachRequestHeader(T stub, Map<String, String> customHeader) {
+    public static <T extends AbstractStub<T>> T attachRequestHeader(T stub, Map<String, String> customHeader) {
         if (MapUtils.isEmpty(customHeader)) {
-            return;
+            return stub;
         }
         Metadata customMetadata = new Metadata();
         for (Entry<String, String> header : customHeader.entrySet()) {
             customMetadata.put(Metadata.Key.of(header.getKey(), Metadata.ASCII_STRING_MARSHALLER), header.getValue());
         }
-        stub.withInterceptors(MetadataUtils.newAttachHeadersInterceptor(customMetadata));
+        return stub.withInterceptors(MetadataUtils.newAttachHeadersInterceptor(customMetadata));
+    }
+
+    public static <T extends AbstractStub<T>> T attachAccessToken(String token, T stub) {
+        if (StringUtils.isBlank(token)) {
+            return stub;
+        }
+        return attachRequestHeader(stub, new HashMap<String, String>() {
+            {
+                put("X-Polaris-Token", token);
+            }
+        });
     }
 
     public static void checkResponse(ResponseProto.Response response) throws PolarisException {
@@ -188,6 +203,20 @@ public class GrpcUtil {
         throw exception;
     }
 
+    public static void checkGrpcException(Throwable t) throws PolarisException {
+        if (t instanceof StatusRuntimeException) {
+            StatusRuntimeException grpcEx = (StatusRuntimeException) t;
+            Status.Code code = grpcEx.getStatus().getCode();
+            switch (code) {
+                case UNAVAILABLE:
+                case DEADLINE_EXCEEDED:
+                case ABORTED:
+                    return;
+            }
+            // 如果是服务端未实现
+            throw new PolarisException(ErrorCode.SERVER_ERROR, grpcEx.getMessage());
+        }
+    }
 
     public static DiscoverRequestType buildDiscoverRequestType(
             ServiceEventKey.EventType type) {
@@ -204,6 +233,8 @@ public class GrpcUtil {
                 return DiscoverRequestType.SERVICES;
             case FAULT_DETECTING:
                 return DiscoverRequestType.FAULT_DETECTOR;
+            case LANE_RULE:
+                return DiscoverRequestType.LANE;
             default:
                 return DiscoverRequestType.UNKNOWN;
         }
@@ -224,6 +255,8 @@ public class GrpcUtil {
                 return DiscoverResponseType.SERVICES;
             case FAULT_DETECTING:
                 return DiscoverResponseType.FAULT_DETECTOR;
+            case LANE_RULE:
+                return DiscoverResponseType.LANE;
             default:
                 return DiscoverResponseType.UNKNOWN;
         }
@@ -243,6 +276,8 @@ public class GrpcUtil {
                 return EventType.SERVICE;
             case FAULT_DETECTOR:
                 return EventType.FAULT_DETECTING;
+            case LANE:
+                return EventType.LANE_RULE;
             default:
                 return EventType.UNKNOWN;
         }

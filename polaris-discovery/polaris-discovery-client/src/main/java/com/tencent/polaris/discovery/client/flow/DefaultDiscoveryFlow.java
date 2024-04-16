@@ -23,6 +23,8 @@ import com.tencent.polaris.api.exception.ErrorCode;
 import com.tencent.polaris.api.exception.PolarisException;
 import com.tencent.polaris.api.exception.RetriableException;
 import com.tencent.polaris.api.flow.DiscoveryFlow;
+import com.tencent.polaris.api.plugin.lossless.InstanceProperties;
+import com.tencent.polaris.api.plugin.lossless.LosslessPolicy;
 import com.tencent.polaris.api.plugin.route.LocationLevel;
 import com.tencent.polaris.api.plugin.server.CommonProviderRequest;
 import com.tencent.polaris.api.plugin.server.CommonProviderResponse;
@@ -31,6 +33,7 @@ import com.tencent.polaris.api.plugin.server.ReportServiceContractRequest;
 import com.tencent.polaris.api.plugin.server.ReportServiceContractResponse;
 import com.tencent.polaris.api.plugin.server.ServerConnector;
 import com.tencent.polaris.api.plugin.server.TargetServer;
+import com.tencent.polaris.api.pojo.BaseInstance;
 import com.tencent.polaris.api.pojo.RetStatus;
 import com.tencent.polaris.api.rpc.GetAllInstancesRequest;
 import com.tencent.polaris.api.rpc.GetHealthyInstancesRequest;
@@ -47,7 +50,10 @@ import com.tencent.polaris.api.rpc.RequestBaseEntity;
 import com.tencent.polaris.api.rpc.ServiceCallResult;
 import com.tencent.polaris.api.rpc.ServiceRuleResponse;
 import com.tencent.polaris.api.rpc.ServicesResponse;
+import com.tencent.polaris.api.rpc.UnWatchInstancesRequest;
 import com.tencent.polaris.api.rpc.WatchInstancesRequest;
+import com.tencent.polaris.api.rpc.WatchServiceResponse;
+import com.tencent.polaris.api.utils.CollectionUtils;
 import com.tencent.polaris.api.utils.StringUtils;
 import com.tencent.polaris.client.api.SDKContext;
 import com.tencent.polaris.client.api.ServiceCallResultListener;
@@ -115,12 +121,21 @@ public class DefaultDiscoveryFlow implements DiscoveryFlow {
 
     @Override
     public InstancesResponse watchInstances(WatchInstancesRequest request) {
-        return null;
+        GetAllInstancesRequest getAllInstancesRequest = GetAllInstancesRequest.builder()
+                .namespace(request.getNamespace())
+                .service(request.getService())
+                .build();
+        CommonInstancesRequest allRequest = new CommonInstancesRequest(getAllInstancesRequest, this.config);
+        CommonWatchServiceRequest watchServiceRequest = new CommonWatchServiceRequest(request, allRequest);
+        WatchServiceResponse response = watchFlow.commonWatchService(watchServiceRequest);
+        return response.getResponse();
     }
 
     @Override
-    public InstancesResponse unWatchInstances(WatchInstancesRequest request) {
-        return null;
+    public InstancesResponse unWatchInstances(UnWatchInstancesRequest request) {
+        CommonUnWatchServiceRequest watchServiceRequest = new CommonUnWatchServiceRequest(request);
+        WatchServiceResponse response = watchFlow.commonUnWatchService(watchServiceRequest);
+        return response.getResponse();
     }
 
     @Override
@@ -375,6 +390,34 @@ public class DefaultDiscoveryFlow implements DiscoveryFlow {
         }
         serviceCallResult.setMethod(method);
         reportInvokeStat(serviceCallResult);
+    }
+
+    @Override
+    public void losslessRegister(BaseInstance instance) {
+        List<LosslessPolicy> losslessPolicies = sdkContext.getExtensions().getLosslessPolicies();
+        if (CollectionUtils.isEmpty(losslessPolicies)) {
+            LOG.info("lossless is disabled, no losslessRegister will do");
+            return;
+        }
+        InstanceProperties instanceProperties = new InstanceProperties();
+        for (LosslessPolicy losslessPolicy : losslessPolicies) {
+            losslessPolicy.buildInstanceProperties(instanceProperties);
+        }
+        for (LosslessPolicy losslessPolicy : losslessPolicies) {
+            losslessPolicy.losslessRegister(instance, instanceProperties);
+        }
+    }
+
+    @Override
+    public void losslessDeregister(BaseInstance instance) {
+        List<LosslessPolicy> losslessPolicies = sdkContext.getExtensions().getLosslessPolicies();
+        if (CollectionUtils.isEmpty(losslessPolicies)) {
+            LOG.info("lossless is disabled, no losslessDeregister will do");
+            return;
+        }
+        for (LosslessPolicy losslessPolicy : losslessPolicies) {
+            losslessPolicy.losslessDeregister(instance);
+        }
     }
 
     @Override

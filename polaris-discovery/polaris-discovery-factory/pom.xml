@@ -74,6 +74,11 @@
             <artifactId>router-set</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.tencent.polaris</groupId>
+            <artifactId>router-lane</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <!--依赖负载均衡插件-->
         <dependency>
             <groupId>com.tencent.polaris</groupId>
@@ -140,6 +145,25 @@
         <dependency>
             <groupId>com.tencent.polaris</groupId>
             <artifactId>location-provider-remoteservice</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- 优雅上下线插件 -->
+        <dependency>
+            <groupId>com.tencent.polaris</groupId>
+            <artifactId>lossless-register</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.tencent.polaris</groupId>
+            <artifactId>lossless-deregister</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- 元数据管理 -->
+        <dependency>
+            <groupId>com.tencent.polaris</groupId>
+            <artifactId>polaris-metadata</artifactId>
             <version>${project.version}</version>
         </dependency>
 

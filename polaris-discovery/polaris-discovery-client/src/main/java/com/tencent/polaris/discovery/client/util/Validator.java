@@ -42,6 +42,7 @@ import com.tencent.polaris.api.utils.CollectionUtils;
 import com.tencent.polaris.api.utils.StringUtils;
 import com.tencent.polaris.client.util.CommonValidator;
 
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -126,16 +127,6 @@ public class Validator {
         if (request.getRuleType() == ServiceEventKey.EventType.INSTANCE) {
             throw new PolarisException(ErrorCode.API_INVALID_ARGUMENT, "event type can not be instance");
         }
-    }
-
-    /**
-     * 校验获取服务规则的请求
-     *
-     * @param request 请求对象
-     * @throws PolarisException 校验失败
-     */
-    public static void validateGetServiceContractRequest(GetServiceContractRequest request) throws PolarisException {
-        checkCommon(request);
     }
 
     /**
@@ -242,10 +233,48 @@ public class Validator {
      * @throws PolarisException exception
      */
     public static void validateReportServiceContractRequest(ReportServiceContractRequest request) throws PolarisException {
-        
+        if (StringUtils.isBlank(request.getNamespace())) {
+            throw new PolarisException(ErrorCode.API_INVALID_ARGUMENT, "service_contract namespace can not be blank");
+        }
+        if (StringUtils.isBlank(request.getName())) {
+            throw new PolarisException(ErrorCode.API_INVALID_ARGUMENT, "service_contract name can not be blank");
+        }
+        if (StringUtils.isBlank(request.getProtocol())) {
+            throw new PolarisException(ErrorCode.API_INVALID_ARGUMENT, "service_contract protocol can not be blank");
+        }
+    }
+
+    /**
+     * Validate report service contract request.
+     *
+     * @param request report service contract request
+     * @throws PolarisException exception
+     */
+    public static void validateGetServiceContractRequest(GetServiceContractRequest request) throws PolarisException {
+        if (StringUtils.isBlank(request.getNamespace())) {
+            throw new PolarisException(ErrorCode.API_INVALID_ARGUMENT, "service_contract namespace can not be blank");
+        }
+        if (StringUtils.isBlank(request.getName())) {
+            throw new PolarisException(ErrorCode.API_INVALID_ARGUMENT, "service_contract name can not be blank");
+        }
+        if (StringUtils.isBlank(request.getProtocol())) {
+            throw new PolarisException(ErrorCode.API_INVALID_ARGUMENT, "service_contract protocol can not be blank");
+        }
     }
 
     private static void checkCommon(BaseEntity entity) throws PolarisException {
         CommonValidator.validateNamespaceService(entity.getNamespace(), entity.getService());
+    }
+
+    /**
+     * validate nullable request
+     * @param request request object
+     * @param name argument name
+     * @throws PolarisException exception
+     */
+    public static void validateNotNull(Object request, String name) throws PolarisException {
+        if (null == request) {
+            throw new PolarisException(ErrorCode.API_INVALID_ARGUMENT, String.format("argument %s can not be null", name));
+        }
     }
 }

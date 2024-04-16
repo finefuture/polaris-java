@@ -17,9 +17,6 @@
 
 package com.tencent.polaris.plugins.registry.memory;
 
-import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
@@ -29,6 +26,11 @@ import com.tencent.polaris.api.pojo.ServiceEventKey;
 import com.tencent.polaris.api.pojo.ServiceKey;
 import com.tencent.polaris.client.util.Utils;
 import com.tencent.polaris.logging.LoggerFactory;
+import com.tencent.polaris.specification.api.v1.traffic.manage.LaneProto;
+import com.tencent.polaris.specification.api.v1.traffic.manage.RoutingProto;
+import org.slf4j.Logger;
+import org.yaml.snakeyaml.Yaml;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -43,17 +45,19 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
-import org.slf4j.Logger;
-import org.yaml.snakeyaml.Yaml;
+
+import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 /**
  * 消息持久化处理器，用于持久化PB对象
@@ -71,6 +75,9 @@ public class MessagePersistHandler {
 
     private static final String PATTERN_SERVICE = "svc#%s#%s#%s.yaml";
 
+    // 同一个文件，两次读取之间的时间间隔为10s
+    private static final long MESSAGE_READ_INTERVAL = TimeUnit.SECONDS.toMillis(10);
+
     private final File persistDirFile;
 
     private final String persistDirPath;
@@ -84,6 +91,17 @@ public class MessagePersistHandler {
     private final JsonFormat.Printer printer = JsonFormat.printer();
 
     private final JsonFormat.Parser parser = JsonFormat.parser();
+
+    private final JsonFormat.TypeRegistry registry = JsonFormat.TypeRegistry.newBuilder()
+            .add(LaneProto.LaneGroup.getDescriptor())
+            .add(LaneProto.ServiceSelector.getDescriptor())
+            .add(LaneProto.ServiceGatewaySelector.getDescriptor())
+            .add(RoutingProto.RuleRoutingConfig.getDescriptor())
+            .add(RoutingProto.MetadataRoutingConfig.getDescriptor())
+            .build();
+
+    // 缓存文件上一次加载的时间，避免频繁对同一个文件进行读取
+    private final Map<ServiceEventKey, Long> messageLastReadTime = new ConcurrentHashMap<>();
 
     public MessagePersistHandler(
             String persistDirPath, int maxWriteRetry, int maxReadRetry, long retryInterval) {
@@ -134,7 +152,7 @@ public class MessagePersistHandler {
      * 持久化单个服务实例数据
      *
      * @param svcEventKey 服务标识
-     * @param message 数据内容
+     * @param message     数据内容
      */
     public void saveService(ServiceEventKey svcEventKey, Message message) {
         int retryTimes = 0;
@@ -182,7 +200,7 @@ public class MessagePersistHandler {
 
     private void writeTmpFile(File persistTmpFile, File persistLockFile, Message message) throws IOException {
         try (RandomAccessFile raf = new RandomAccessFile(persistLockFile, "rw");
-                FileChannel channel = raf.getChannel()) {
+             FileChannel channel = raf.getChannel()) {
             FileLock lock = channel.tryLock();
             if (lock == null) {
                 throw new IOException(
@@ -204,7 +222,7 @@ public class MessagePersistHandler {
             }
         }
         try (FileOutputStream outputFile = new FileOutputStream(persistTmpFile)) {
-            String jsonStr = printer.print(message);
+            String jsonStr = printer.usingTypeRegistry(registry).print(message);
             JsonNode jsonNodeTree = new ObjectMapper().readTree(jsonStr);
             String jsonAsYaml = new YAMLMapper().writeValueAsString(jsonNodeTree);
             outputFile.write(jsonAsYaml.getBytes(StandardCharsets.UTF_8));
@@ -236,52 +254,57 @@ public class MessagePersistHandler {
         return persistPath.toAbsolutePath();
     }
 
+    boolean shouldLoadFromStore(ServiceEventKey eventKey) {
+        long currentTimeMs = System.currentTimeMillis();
+        Long previousTimeMs = messageLastReadTime.putIfAbsent(eventKey, currentTimeMs);
+        final boolean[] loadFromStore = {false};
+        if (null != previousTimeMs) {
+            if (currentTimeMs - previousTimeMs < MESSAGE_READ_INTERVAL) {
+                return false;
+            }
+            messageLastReadTime.computeIfPresent(eventKey, new BiFunction<ServiceEventKey, Long, Long>() {
+                @Override
+                public Long apply(ServiceEventKey serviceEventKey, Long aLong) {
+                    if (Objects.equals(aLong, previousTimeMs)) {
+                        loadFromStore[0] = true;
+                        return currentTimeMs;
+                    }
+                    return aLong;
+                }
+            });
+        } else {
+            // first time
+            loadFromStore[0] = true;
+        }
+        return loadFromStore[0];
+    }
+
     /**
      * 遍历缓存目录并加载之前缓存的服务信息
      *
-     * @param message 消息对象
+     * @param eventKey 消息对象
+     * @param builderSupplier
      * @return 服务标识-消息对象的集合
      */
-    public Map<ServiceEventKey, Message> loadPersistedServices(Message message) {
-        Path curDir = Paths.get(persistDirPath);
-        Map<ServiceEventKey, Message> result = new HashMap<>();
-        try {
-            Files.walkFileTree(curDir, new SimpleFileVisitor<Path>() {
-                @Override
-                public FileVisitResult visitFile(Path filePath, BasicFileAttributes attrs) {
-                    Path fileNamePath = filePath.getFileName();
-                    if (null == fileNamePath) {
-                        return FileVisitResult.CONTINUE;
-                    }
-                    String fileName = fileNamePath.toString();
-                    if (!REGEX_PATTERN_SERVICE.matcher(fileName).matches()) {
-                        return FileVisitResult.CONTINUE;
-                    }
-                    ServiceEventKey svcEventKey = fileNameToServiceKey(fileName);
-                    int retryTimes = 0;
-                    Message readMessage = null;
-                    while (retryTimes <= maxReadRetry) {
-                        retryTimes++;
-                        Message.Builder builder = message.newBuilderForType();
-                        readMessage = loadMessage(filePath.toFile(), builder);
-                        if (null == readMessage) {
-                            Utils.sleepUninterrupted(retryInterval);
-                            continue;
-                        }
-                        break;
-                    }
-                    if (null == readMessage) {
-                        LOG.debug("fail to read service from {} after retry {} times", fileName, retryTimes);
-                        return FileVisitResult.CONTINUE;
-                    }
-                    result.put(svcEventKey, readMessage);
-                    return FileVisitResult.CONTINUE;
-                }
-            });
-        } catch (IOException e) {
-            LOG.error("fail to visit cache directory {}", persistDirPath);
+    public Message loadPersistedServices(ServiceEventKey eventKey, Supplier<Message.Builder> builderSupplier) {
+        if (!shouldLoadFromStore(eventKey)) {
+            return null;
         }
-        return result;
+        String fileName = serviceKeyToFileName(eventKey);
+        int retryTimes = 0;
+        Message readMessage = null;
+        Message.Builder builder = builderSupplier.get();
+        while (retryTimes <= maxReadRetry) {
+            retryTimes++;
+            readMessage = loadMessage(Paths.get(persistDirPath, fileName).toFile(), builder);
+            if (null == readMessage) {
+                Utils.sleepUninterrupted(retryInterval);
+                continue;
+            }
+            return readMessage;
+        }
+        LOG.debug("fail to read service from {} after retry {} times", fileName, retryTimes);
+        return null;
     }
 
     private Message loadMessage(File persistFile, Message.Builder builder) {
@@ -297,7 +320,7 @@ public class MessagePersistHandler {
             Map<String, Object> jsonMap = yaml.load(reader);
             ObjectMapper jsonWriter = new ObjectMapper();
             String jsonStr = jsonWriter.writeValueAsString(jsonMap);
-            parser.merge(jsonStr, builder);
+            parser.usingTypeRegistry(registry).merge(jsonStr, builder);
             return builder.build();
         } catch (IOException e) {
             LOG.debug("fail to read file {}", persistFile.getAbsoluteFile(), e);

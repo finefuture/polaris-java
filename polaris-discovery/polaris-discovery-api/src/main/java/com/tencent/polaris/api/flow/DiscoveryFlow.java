@@ -19,20 +19,8 @@ package com.tencent.polaris.api.flow;
 
 import com.tencent.polaris.api.plugin.server.ReportServiceContractRequest;
 import com.tencent.polaris.api.plugin.server.ReportServiceContractResponse;
-import com.tencent.polaris.api.rpc.GetAllInstancesRequest;
-import com.tencent.polaris.api.rpc.GetHealthyInstancesRequest;
-import com.tencent.polaris.api.rpc.GetServiceContractRequest;
-import com.tencent.polaris.api.rpc.GetServiceRuleRequest;
-import com.tencent.polaris.api.rpc.GetServicesRequest;
-import com.tencent.polaris.api.rpc.InstanceDeregisterRequest;
-import com.tencent.polaris.api.rpc.InstanceHeartbeatRequest;
-import com.tencent.polaris.api.rpc.InstanceRegisterRequest;
-import com.tencent.polaris.api.rpc.InstanceRegisterResponse;
-import com.tencent.polaris.api.rpc.InstancesFuture;
-import com.tencent.polaris.api.rpc.InstancesResponse;
-import com.tencent.polaris.api.rpc.ServiceRuleResponse;
-import com.tencent.polaris.api.rpc.ServicesResponse;
-import com.tencent.polaris.api.rpc.WatchInstancesRequest;
+import com.tencent.polaris.api.pojo.BaseInstance;
+import com.tencent.polaris.api.rpc.*;
 import com.tencent.polaris.client.flow.AbstractFlow;
 
 public interface DiscoveryFlow extends AbstractFlow {
@@ -53,7 +41,7 @@ public interface DiscoveryFlow extends AbstractFlow {
         return null;
     }
 
-    default InstancesResponse unWatchInstances(WatchInstancesRequest request) {
+    default InstancesResponse unWatchInstances(UnWatchInstancesRequest request) {
         return null;
     }
 
@@ -84,6 +72,11 @@ public interface DiscoveryFlow extends AbstractFlow {
     default ReportServiceContractResponse reportServiceContract(ReportServiceContractRequest req) {
         return null;
     }
+
+
+    default void losslessRegister(BaseInstance instance) {}
+
+    default void losslessDeregister(BaseInstance instance) {}
 
     void destroy();
 
